@@ -1,9 +1,57 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
-app.use(express.json());
+
+// Security middleware with environment-aware CSP
+const isProduction = process.env.NODE_ENV === 'production';
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
+      fontSrc: ["'self'", "fonts.gstatic.com"],
+      // Remove unsafe-inline scripts in production for security
+      scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      // Additional security headers for production
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  // Enable additional security headers
+  crossOriginEmbedderPolicy: isProduction,
+  crossOriginOpenerPolicy: isProduction,
+  crossOriginResourcePolicy: isProduction ? { policy: "same-site" } : false,
+  dnsPrefetchControl: true,
+  frameguard: { action: 'deny' },
+  hidePoweredBy: true,
+  hsts: isProduction ? {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  } : false,
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: false,
+  referrerPolicy: { policy: "no-referrer" },
+  xssFilter: true,
+}));
+
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' ? ['https://your-domain.com'] : true,
+  credentials: true,
+}));
+
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -21,7 +69,11 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      
+      // In production, don't log response bodies to prevent PII/token exposure
+      // In development, only log non-auth endpoints for debugging
+      const shouldLogResponse = !isProduction && !path.startsWith("/api/auth/") && capturedJsonResponse;
+      if (shouldLogResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
