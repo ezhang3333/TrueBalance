@@ -190,6 +190,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Teller integration routes
+  app.post('/api/teller/connect', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { accessToken } = req.body;
+      
+      if (!accessToken) {
+        return res.status(400).json({ error: 'Access token is required' });
+      }
+
+      // Import tellerService
+      const { tellerService } = await import('./teller');
+      
+      // Store the access token securely server-side
+      await storage.setUserTellerToken(req.user!.id, accessToken);
+      
+      // Sync accounts and transactions for the user
+      await tellerService.syncUserAccounts(req.user!.id, accessToken);
+      await tellerService.syncAccountTransactions(req.user!.id, accessToken);
+      
+      res.json({ 
+        message: 'Bank accounts connected successfully',
+        success: true 
+      });
+    } catch (error) {
+      console.error('Teller connect error:', error);
+      res.status(500).json({ 
+        error: 'Failed to connect bank accounts',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/teller/sync', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { accountId } = req.body;
+      
+      // Get the stored access token
+      const accessToken = await storage.getUserTellerToken(req.user!.id);
+      
+      if (!accessToken) {
+        return res.status(400).json({ 
+          error: 'No bank connection found. Please connect your bank account first.' 
+        });
+      }
+
+      // Import tellerService
+      const { tellerService } = await import('./teller');
+      
+      // Sync accounts first, then transactions
+      await tellerService.syncUserAccounts(req.user!.id, accessToken);
+      await tellerService.syncAccountTransactions(req.user!.id, accessToken, accountId);
+      
+      res.json({ 
+        message: 'Account data synced successfully',
+        success: true 
+      });
+    } catch (error) {
+      console.error('Teller sync error:', error);
+      res.status(500).json({ 
+        error: 'Failed to sync account data',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get('/api/teller/config', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      // Import tellerService
+      const { tellerService } = await import('./teller');
+      
+      const config = tellerService.getTellerConnectConfig();
+      res.json(config);
+    } catch (error) {
+      console.error('Teller config error:', error);
+      res.status(500).json({ error: 'Failed to get Teller configuration' });
+    }
+  });
+
+  // Enhanced accounts endpoint with balances
+  app.get('/api/accounts/:id/balance', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Get the stored access token
+      const accessToken = await storage.getUserTellerToken(req.user!.id);
+      
+      if (!accessToken) {
+        return res.status(400).json({ 
+          error: 'No bank connection found. Please connect your bank account first.' 
+        });
+      }
+
+      // Get account from database
+      const accounts = await storage.getAccountsByUserId(req.user!.id);
+      const account = accounts.find(acc => acc.id === id);
+      
+      if (!account) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+
+      // Import tellerService and get live balance
+      const { tellerService } = await import('./teller');
+      const liveBalance = await tellerService.getAccountBalance(accessToken, account.externalId);
+      
+      res.json({ 
+        accountId: id,
+        balance: liveBalance,
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Account balance error:', error);
+      res.status(500).json({ error: 'Failed to fetch account balance' });
+    }
+  });
+
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

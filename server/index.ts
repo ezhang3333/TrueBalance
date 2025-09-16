@@ -15,10 +15,15 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
       fontSrc: ["'self'", "fonts.gstatic.com"],
-      // Remove unsafe-inline scripts in production for security
-      scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
+      // Allow Teller script loading
+      scriptSrc: isProduction ? 
+        ["'self'", "https://cdn.teller.io"] : 
+        ["'self'", "'unsafe-inline'", "https://cdn.teller.io"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
+      // Allow Teller API connections
+      connectSrc: ["'self'", "https://api.teller.io"],
+      // Allow Teller Connect iframe
+      frameSrc: ["'self'", "https://connect.teller.io", "https://*.teller.io"],
       // Additional security headers for production
       objectSrc: ["'none'"],
       baseUri: ["'self'"],

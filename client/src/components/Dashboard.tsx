@@ -1,45 +1,18 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  SidebarProvider, 
-  SidebarTrigger,
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
 import { AccountCard } from "./AccountCard";
-import { TransactionItem } from "./TransactionItem";
-import { SpendingChart } from "./SpendingChart";
-import { SearchAndFilter } from "./SearchAndFilter";
-import { ThemeToggle } from "./ThemeToggle";
 import { 
-  Home, 
-  CreditCard, 
-  BarChart3, 
-  Settings, 
   Plus,
   Download,
   RefreshCw,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownRight
 } from "lucide-react";
 
-interface DashboardProps {
-  onLogout: () => void;
-}
-
-export function Dashboard({ onLogout }: DashboardProps) {
-  const [activeView, setActiveView] = useState("dashboard");
-
+export function Dashboard() {
   // todo: remove mock functionality
   const mockAccounts = [
     {
@@ -73,351 +46,263 @@ export function Dashboard({ onLogout }: DashboardProps) {
     {
       id: "txn-1",
       description: "Whole Foods Market",
-      amount: -85.32,
+      amount: -67.42,
       category: "food",
-      date: "Today",
-      account: "Main Checking",
-      type: "expense" as const
+      date: "2024-01-15",
+      account: "Main Checking"
     },
     {
-      id: "txn-2", 
-      description: "Payroll Deposit",
-      amount: 3250.00,
-      category: "other",
-      date: "Yesterday",
-      account: "Main Checking", 
-      type: "income" as const
+      id: "txn-2",
+      description: "Salary Deposit",
+      amount: 3200.00,
+      category: "income",
+      date: "2024-01-15",
+      account: "Main Checking"
     },
     {
       id: "txn-3",
-      description: "Gas Station",
-      amount: -42.15,
-      category: "transportation",
-      date: "2 days ago",
-      account: "Main Checking",
-      type: "expense" as const
+      description: "Netflix Subscription",
+      amount: -15.99,
+      category: "entertainment",
+      date: "2024-01-14",
+      account: "Main Checking"
     },
     {
       id: "txn-4",
-      description: "Amazon Purchase", 
-      amount: -156.78,
-      category: "shopping",
-      date: "3 days ago",
-      account: "Travel Credit Card",
-      type: "expense" as const
+      description: "Gas Station",
+      amount: -45.30,
+      category: "transportation",
+      date: "2024-01-14",
+      account: "Main Checking"
+    },
+    {
+      id: "txn-5",
+      description: "Transfer to Savings",
+      amount: -500.00,
+      category: "transfer",
+      date: "2024-01-13",
+      account: "Main Checking"
     }
   ];
 
   // todo: remove mock functionality
-  const monthlyData = [
-    { month: "Jan", amount: 2450 },
-    { month: "Feb", amount: 3100 }, 
-    { month: "Mar", amount: 2800 },
-    { month: "Apr", amount: 3300 },
-    { month: "May", amount: 2950 },
-    { month: "Jun", amount: 3600 },
-  ];
-
-  // todo: remove mock functionality  
-  const categoryData = [
-    { name: "Food & Dining", value: 1250, color: "hsl(var(--chart-2))" },
-    { name: "Transportation", value: 850, color: "hsl(var(--chart-3))" },
-    { name: "Shopping", value: 950, color: "hsl(var(--chart-1))" },
-    { name: "Housing", value: 420, color: "hsl(var(--chart-4))" },
-    { name: "Entertainment", value: 330, color: "hsl(var(--chart-5))" },
-  ];
-
-  const sidebarItems = [
-    { title: "Dashboard", icon: Home, key: "dashboard" },
-    { title: "Accounts", icon: CreditCard, key: "accounts" },
-    { title: "Analytics", icon: BarChart3, key: "analytics" },
-    { title: "Settings", icon: Settings, key: "settings" },
-  ];
-
-  const handleFilterChange = (filters: any) => {
-    console.log('Dashboard filters changed:', filters);
+  const mockCategoryTotals = {
+    food: -245.67,
+    transportation: -156.89,
+    entertainment: -89.45,
+    shopping: -234.12,
+    housing: -1200.00,
+    other: -89.56
   };
 
   const totalBalance = mockAccounts.reduce((sum, account) => sum + account.balance, 0);
-
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "4rem",
-  };
+  const monthlyChange = mockAccounts.reduce((sum, account) => sum + account.change, 0);
+  const monthlyIncome = mockTransactions
+    .filter(tx => tx.amount > 0)
+    .reduce((sum, tx) => sum + tx.amount, 0);
+  const monthlyExpenses = Math.abs(mockTransactions
+    .filter(tx => tx.amount < 0)
+    .reduce((sum, tx) => sum + tx.amount, 0));
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <Sidebar>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-lg font-bold flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                TrueBalance
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {sidebarItems.map((item) => (
-                    <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton 
-                        asChild
-                        className={activeView === item.key ? "bg-sidebar-accent" : ""}
-                        data-testid={`button-nav-${item.key}`}
-                      >
-                        <button onClick={() => setActiveView(item.key)}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </button>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup className="mt-auto">
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={onLogout} data-testid="button-logout">
-                      <Settings className="h-4 w-4" />
-                      <span>Sign Out</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-        </Sidebar>
-
-        <div className="flex flex-col flex-1">
-          <header className="flex items-center justify-between p-4 border-b bg-background">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <div>
-                <h1 className="text-xl font-semibold">
-                  {sidebarItems.find(item => item.key === activeView)?.title || "Dashboard"}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Welcome back! Here's your financial overview.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" data-testid="button-sync">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Sync Accounts
-              </Button>
-              <ThemeToggle />
-            </div>
-          </header>
-
-          <main className="flex-1 overflow-auto p-6">
-            {activeView === "dashboard" && (
-              <div className="space-y-6">
-                {/* Total Balance Overview */}
-                <Card data-testid="card-total-balance">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      Total Balance
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold font-mono">
-                      ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Across {mockAccounts.length} connected accounts
-                    </p>
-                  </CardContent>
-                </Card>
-
-                {/* Account Cards */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Accounts</h2>
-                    <Button size="sm" data-testid="button-add-account">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Connect Account
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {mockAccounts.map((account, index) => (
-                      <AccountCard key={index} {...account} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Spending Analytics */}
-                <div>
-                  <h2 className="text-lg font-semibold mb-4">Spending Analytics</h2>
-                  <SpendingChart
-                    monthlyData={monthlyData}
-                    categoryData={categoryData} 
-                    totalSpending={3800}
-                    previousMonthChange={12.5}
-                  />
-                </div>
-
-                {/* Recent Transactions */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Recent Transactions</h2>
-                    <Button variant="outline" size="sm" data-testid="button-export">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                  </div>
-                  
-                  <SearchAndFilter
-                    onFilterChange={handleFilterChange}
-                    categories={["food", "transportation", "shopping", "housing", "entertainment"]}
-                    accounts={mockAccounts.map(account => account.accountName)}
-                  />
-                  
-                  <div className="mt-4 space-y-3">
-                    {mockTransactions.map((transaction) => (
-                      <TransactionItem key={transaction.id} {...transaction} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeView === "accounts" && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">Account Management</h2>
-                  <Button data-testid="button-add-account-page">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Connect New Account
-                  </Button>
-                </div>
-                
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {mockAccounts.map((account, index) => (
-                    <AccountCard key={index} {...account} />
-                  ))}
-                </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Account Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {mockAccounts.map((account, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <div className="font-medium">{account.accountName}</div>
-                            <div className="text-sm text-muted-foreground">{account.accountType}</div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={account.isConnected ? "default" : "destructive"}>
-                              {account.isConnected ? "Connected" : "Disconnected"}
-                            </Badge>
-                            <Button variant="outline" size="sm">
-                              {account.isConnected ? "Refresh" : "Reconnect"}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {activeView === "analytics" && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold">Financial Analytics</h2>
-                
-                <SpendingChart
-                  monthlyData={monthlyData}
-                  categoryData={categoryData}
-                  totalSpending={3800}
-                  previousMonthChange={12.5}
-                />
-
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Average Monthly Spending</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold font-mono">$3,050</div>
-                      <p className="text-xs text-muted-foreground">Based on last 6 months</p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Top Category</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">Food & Dining</div>
-                      <p className="text-xs text-muted-foreground">32.9% of total spending</p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Savings Rate</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-chart-2">24.8%</div>
-                      <p className="text-xs text-muted-foreground">Above average!</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-
-            {activeView === "settings" && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold">Settings</h2>
-                
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Account Preferences</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">Display Currency</label>
-                        <Input value="USD ($)" readOnly className="mt-1" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Date Format</label>
-                        <Input value="MM/DD/YYYY" readOnly className="mt-1" />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Security</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Button variant="outline" className="w-full">
-                        Change Password
-                      </Button>
-                      <Button variant="outline" className="w-full">
-                        Download Data
-                      </Button>
-                      <Separator />
-                      <Button variant="destructive" className="w-full" onClick={onLogout}>
-                        Sign Out
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-          </main>
+    <div className="container mx-auto p-6 max-w-7xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Financial Dashboard</h1>
+          <p className="text-muted-foreground">
+            Track your finances and spending patterns
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" data-testid="button-sync">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync Accounts
+          </Button>
+          <Button variant="outline" size="sm" data-testid="button-export">
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button size="sm" data-testid="button-add-account">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Account
+          </Button>
         </div>
       </div>
-    </SidebarProvider>
+
+      {/* Overview Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-total-balance">
+              ${totalBalance.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <span className={monthlyChange >= 0 ? "text-green-600" : "text-red-600"}>
+                {monthlyChange >= 0 ? "+" : ""}${monthlyChange.toFixed(2)}
+              </span> from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Income</CardTitle>
+            <ArrowUpRight className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600" data-testid="text-monthly-income">
+              +${monthlyIncome.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              +12.5% from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monthly Expenses</CardTitle>
+            <ArrowDownRight className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600" data-testid="text-monthly-expenses">
+              -${monthlyExpenses.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              -8.2% from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Savings</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-net-savings">
+              ${(monthlyIncome - monthlyExpenses).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              +24.1% from last month
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Accounts Overview */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {mockAccounts.map((account, index) => (
+                  <AccountCard 
+                    key={index}
+                    accountName={account.accountName}
+                    accountType={account.accountType}
+                    balance={account.balance}
+                    change={account.change}
+                    changePercent={account.changePercent}
+                    isConnected={account.isConnected}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Spending by Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Object.entries(mockCategoryTotals).map(([category, amount]) => (
+                  <div key={category} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-primary"></div>
+                      <span className="text-sm font-medium capitalize">{category}</span>
+                    </div>
+                    <span className="text-sm font-medium text-red-600">
+                      ${Math.abs(amount).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Recent Transactions and Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Recent Transactions</CardTitle>
+            <Button variant="outline" size="sm">
+              View All
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {mockTransactions.slice(0, 5).map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-primary"></div>
+                    <div>
+                      <p className="font-medium">{transaction.description}</p>
+                      <p className="text-sm text-muted-foreground capitalize">{transaction.category}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-medium ${transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {transaction.amount >= 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{transaction.date}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Spending Trends</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold">$2,015.69</p>
+                <p className="text-sm text-muted-foreground">Total Spending This Month</p>
+              </div>
+              <div className="space-y-3">
+                {Object.entries(mockCategoryTotals).map(([category, amount]) => (
+                  <div key={category} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-primary"></div>
+                      <span className="text-sm font-medium capitalize">{category}</span>
+                    </div>
+                    <span className="text-sm font-medium text-red-600">
+                      ${Math.abs(amount).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

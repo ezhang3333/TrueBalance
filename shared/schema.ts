@@ -9,6 +9,8 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
+  // Encrypted Teller access token for secure bank connections
+  tellerAccessToken: text("teller_access_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

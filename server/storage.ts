@@ -36,6 +36,11 @@ export interface IStorage {
   getTransactionsByUserId(userId: string, limit?: number): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   createTransactions(transactions: InsertTransaction[]): Promise<Transaction[]>;
+  
+  // Teller integration management
+  setUserTellerToken(userId: string, accessToken: string): Promise<void>;
+  getUserTellerToken(userId: string): Promise<string | undefined>;
+  removeUserTellerToken(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -144,6 +149,105 @@ export class DatabaseStorage implements IStorage {
       .insert(transactions)
       .values(insertTransactions)
       .returning();
+  }
+
+  // Teller integration methods with secure AES-256-GCM encryption
+  async setUserTellerToken(userId: string, accessToken: string): Promise<void> {
+    const encrypted = this.secureEncrypt(accessToken);
+    
+    await db
+      .update(users)
+      .set({ tellerAccessToken: encrypted })
+      .where(eq(users.id, userId));
+  }
+
+  async getUserTellerToken(userId: string): Promise<string | undefined> {
+    const [user] = await db
+      .select({ tellerAccessToken: users.tellerAccessToken })
+      .from(users)
+      .where(eq(users.id, userId));
+    
+    if (!user?.tellerAccessToken) {
+      return undefined;
+    }
+
+    try {
+      return this.secureDecrypt(user.tellerAccessToken);
+    } catch (error) {
+      console.error('Failed to decrypt Teller token:', error);
+      return undefined;
+    }
+  }
+
+  async removeUserTellerToken(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ tellerAccessToken: null })
+      .where(eq(users.id, userId));
+  }
+
+  // Secure AES-256-GCM encryption helpers
+  private secureEncrypt(text: string): string {
+    const crypto = require('crypto');
+    
+    // Ensure strong key management - require proper key in production
+    const secret = process.env.TELLER_TOKEN_KEY || process.env.SESSION_SECRET;
+    if (!secret || secret === 'fallback-secret') {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('TELLER_TOKEN_KEY or strong SESSION_SECRET required in production');
+      }
+      console.warn('Warning: Using weak encryption key. Set TELLER_TOKEN_KEY environment variable.');
+    }
+    
+    // Create 256-bit key from secret
+    const key = crypto.scryptSync(secret || 'fallback-secret', 'teller-token', 32);
+    
+    // Generate random 12-byte IV (GCM prefers 12 bytes)
+    const iv = crypto.randomBytes(12);
+    
+    // Create cipher with proper API
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    
+    // Encrypt text
+    const ciphertext = Buffer.concat([
+      cipher.update(text, 'utf8'),
+      cipher.final()
+    ]);
+    
+    // Get authentication tag
+    const tag = cipher.getAuthTag();
+    
+    // Combine and encode: iv:tag:ciphertext (all base64 encoded)
+    const combined = Buffer.concat([iv, tag, ciphertext]);
+    return combined.toString('base64');
+  }
+
+  private secureDecrypt(encryptedData: string): string {
+    const crypto = require('crypto');
+    
+    // Decode combined data
+    const combined = Buffer.from(encryptedData, 'base64');
+    
+    // Extract components
+    const iv = combined.subarray(0, 12);          // 12 bytes IV
+    const tag = combined.subarray(12, 12 + 16);   // 16 bytes auth tag
+    const ciphertext = combined.subarray(12 + 16); // Rest is ciphertext
+    
+    // Use same key derivation
+    const secret = process.env.TELLER_TOKEN_KEY || process.env.SESSION_SECRET || 'fallback-secret';
+    const key = crypto.scryptSync(secret, 'teller-token', 32);
+    
+    // Create decipher with proper API
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    
+    // Decrypt
+    const plaintext = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ]);
+    
+    return plaintext.toString('utf8');
   }
 }
 
