@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: truebalance_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: truebalance
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d truebalance"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # TrueBalance Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: truebalance_app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/truebalance
+      SESSION_SECRET: your-super-secret-jwt-key-change-this-in-production
+      TELLER_TOKEN_KEY: your-teller-token-encryption-key-change-this
+      TELLER_APPLICATION_ID: ${TELLER_APPLICATION_ID:-}
+      TELLER_CERTIFICATE: ${TELLER_CERTIFICATE:-}
+      TELLER_PRIVATE_KEY: ${TELLER_PRIVATE_KEY:-}
+      TELLER_ENVIRONMENT: ${TELLER_ENVIRONMENT:-sandbox}
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount source code for hot reloading in development
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run dev
+
+  # pgAdmin (Optional - Database Management UI)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: truebalance_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@truebalance.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    profiles:
+      - tools  # Only start when using --profile tools
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: truebalance_network
