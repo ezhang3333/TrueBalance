@@ -20,8 +20,10 @@ app.use(helmet({
         ["'self'", "https://cdn.teller.io"] : 
         ["'self'", "'unsafe-inline'", "https://cdn.teller.io"],
       imgSrc: ["'self'", "data:", "https:"],
-      // Allow Teller API connections
-      connectSrc: ["'self'", "https://api.teller.io"],
+      // Allow Teller API connections and WebSocket for Vite HMR
+      connectSrc: isProduction ? 
+        ["'self'", "https://api.teller.io"] :
+        ["'self'", "https://api.teller.io", "ws:", "wss:"],
       // Allow Teller Connect iframe
       frameSrc: ["'self'", "https://connect.teller.io", "https://*.teller.io"],
       // Additional security headers for production
@@ -96,12 +98,19 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    
+    // Include stack trace in development for debugging
+    const responseBody = isProduction 
+      ? { message }
+      : { message, stack: err.stack, path: req.path };
 
-    res.status(status).json({ message });
-    throw err;
+    res.status(status).json(responseBody);
+    
+    // Log error but don't crash the server
+    console.error(`Error ${status} on ${req.method} ${req.path}:`, err);
   });
 
   // importantly only setup vite in development and after

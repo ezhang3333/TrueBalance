@@ -6,10 +6,10 @@ import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
 
-// Strict rate limiting for authentication endpoints
+// Environment-driven rate limiting for authentication endpoints
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per window
+  windowMs: parseInt(process.env.AUTH_LOGIN_WINDOW_MS || '900000'), // 15 minutes default
+  max: parseInt(process.env.AUTH_LOGIN_MAX || '5'), // 5 attempts default
   message: { error: 'Too many login attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -17,8 +17,10 @@ const loginLimiter = rateLimit({
 });
 
 const registerLimiter = rateLimit({
-  windowMs: process.env.NODE_ENV === 'development' ? 5 * 60 * 1000 : 60 * 60 * 1000, // 5 minutes in dev, 1 hour in prod
-  max: process.env.NODE_ENV === 'development' ? 20 : 3, // 20 attempts in dev, 3 in prod
+  windowMs: parseInt(process.env.AUTH_REGISTER_WINDOW_MS || 
+    (process.env.NODE_ENV === 'development' ? '300000' : '3600000')), // 5min dev, 1hr prod
+  max: parseInt(process.env.AUTH_REGISTER_MAX || 
+    (process.env.NODE_ENV === 'development' ? '20' : '3')), // 20 dev, 3 prod
   message: { error: 'Too many registration attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,

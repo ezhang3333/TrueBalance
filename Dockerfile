@@ -12,6 +12,9 @@ RUN npm ci --only=production
 FROM base AS development
 WORKDIR /app
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Install all dependencies including dev dependencies
 RUN npm ci
 

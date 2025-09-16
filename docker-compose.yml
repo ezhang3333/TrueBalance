@@ -28,15 +28,11 @@ services:
       target: development
     container_name: truebalance_app
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:password@postgres:5432/truebalance
-      SESSION_SECRET: your-super-secret-jwt-key-change-this-in-production
-      TELLER_TOKEN_KEY: your-teller-token-encryption-key-change-this
-      TELLER_APPLICATION_ID: ${TELLER_APPLICATION_ID:-}
-      TELLER_CERTIFICATE: ${TELLER_CERTIFICATE:-}
-      TELLER_PRIVATE_KEY: ${TELLER_PRIVATE_KEY:-}
-      TELLER_ENVIRONMENT: ${TELLER_ENVIRONMENT:-sandbox}
       PORT: 5000
     ports:
       - "5000:5000"
@@ -47,7 +43,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: npm run dev
+    command: sh -c "npm run db:push && npm run dev"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # pgAdmin (Optional - Database Management UI)
   pgadmin:
