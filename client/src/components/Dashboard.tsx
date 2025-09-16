@@ -1,7 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AccountCard } from "./AccountCard";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
 import { 
   Plus,
   Download,
@@ -9,100 +14,103 @@ import {
   TrendingUp,
   DollarSign,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  AlertCircle
 } from "lucide-react";
 
+// Import shared types from schema for consistency
+import type { Account, Transaction } from '@shared/schema';
+
 export function Dashboard() {
-  // todo: remove mock functionality
-  const mockAccounts = [
-    {
-      accountName: "Main Checking",
-      accountType: "checking",
-      balance: 4250.75,
-      change: 320.50,
-      changePercent: 8.2,
-      isConnected: true
-    },
-    {
-      accountName: "High Yield Savings", 
-      accountType: "savings",
-      balance: 15680.25,
-      change: 145.30,
-      changePercent: 0.9,
-      isConnected: true
-    },
-    {
-      accountName: "Travel Credit Card",
-      accountType: "credit", 
-      balance: -1205.85,
-      change: -85.20,
-      changePercent: -7.6,
-      isConnected: false
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch real accounts data
+  const { data: accounts, isLoading: accountsLoading, error: accountsError } = useQuery<Account[]>({
+    queryKey: ['/api/accounts'],
+    enabled: !!localStorage.getItem('token'),
+  });
+
+  // Fetch real transactions data
+  const { data: transactions, isLoading: transactionsLoading, error: transactionsError } = useQuery<Transaction[]>({
+    queryKey: ['/api/transactions'],
+    enabled: !!localStorage.getItem('token'),
+  });
+
+  // Handle API errors with useEffect to prevent repeated toasts
+  useEffect(() => {
+    if (accountsError) {
+      toast({
+        title: 'Failed to load accounts',
+        description: 'Unable to fetch your bank account data. Please try refreshing.',
+        variant: 'destructive',
+      });
     }
-  ];
-
-  // todo: remove mock functionality
-  const mockTransactions = [
-    {
-      id: "txn-1",
-      description: "Whole Foods Market",
-      amount: -67.42,
-      category: "food",
-      date: "2024-01-15",
-      account: "Main Checking"
-    },
-    {
-      id: "txn-2",
-      description: "Salary Deposit",
-      amount: 3200.00,
-      category: "income",
-      date: "2024-01-15",
-      account: "Main Checking"
-    },
-    {
-      id: "txn-3",
-      description: "Netflix Subscription",
-      amount: -15.99,
-      category: "entertainment",
-      date: "2024-01-14",
-      account: "Main Checking"
-    },
-    {
-      id: "txn-4",
-      description: "Gas Station",
-      amount: -45.30,
-      category: "transportation",
-      date: "2024-01-14",
-      account: "Main Checking"
-    },
-    {
-      id: "txn-5",
-      description: "Transfer to Savings",
-      amount: -500.00,
-      category: "transfer",
-      date: "2024-01-13",
-      account: "Main Checking"
+  }, [accountsError, toast]);
+  
+  useEffect(() => {
+    if (transactionsError) {
+      toast({
+        title: 'Failed to load transactions', 
+        description: 'Unable to fetch your transaction history. Please try refreshing.',
+        variant: 'destructive',
+      });
     }
-  ];
+  }, [transactionsError, toast]);
 
-  // todo: remove mock functionality
-  const mockCategoryTotals = {
-    food: -245.67,
-    transportation: -156.89,
-    entertainment: -89.45,
-    shopping: -234.12,
-    housing: -1200.00,
-    other: -89.56
-  };
+  // Sync accounts mutation
+  const syncAccountsMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/teller/sync', {});
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Sync Complete',
+        description: 'Account data has been updated with the latest transactions.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Sync Failed',
+        description: error.message || 'Failed to sync account data. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
 
-  const totalBalance = mockAccounts.reduce((sum, account) => sum + account.balance, 0);
-  const monthlyChange = mockAccounts.reduce((sum, account) => sum + account.change, 0);
-  const monthlyIncome = mockTransactions
-    .filter(tx => tx.amount > 0)
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const monthlyExpenses = Math.abs(mockTransactions
-    .filter(tx => tx.amount < 0)
-    .reduce((sum, tx) => sum + tx.amount, 0));
+  // Calculate real financial metrics
+  const totalBalance = accounts?.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0) || 0;
+  
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  
+  const currentMonthTransactions = transactions?.filter(tx => {
+    // Defensive date parsing to handle both string and Date objects
+    const txDate = new Date(typeof tx.date === 'string' ? tx.date : tx.date);
+    return !isNaN(txDate.getTime()) && txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+  }) || [];
+  
+  const monthlyIncome = currentMonthTransactions
+    .filter(tx => parseFloat(tx.amount) > 0)
+    .reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+    
+  const monthlyExpenses = Math.abs(currentMonthTransactions
+    .filter(tx => parseFloat(tx.amount) < 0)
+    .reduce((sum, tx) => sum + parseFloat(tx.amount), 0));
+    
+  const netSavings = monthlyIncome - monthlyExpenses;
+  
+  // Calculate category totals from real transactions
+  const categoryTotals = currentMonthTransactions
+    .filter(tx => parseFloat(tx.amount) < 0)
+    .reduce((acc, tx) => {
+      const category = tx.category || 'other';
+      acc[category] = (acc[category] || 0) + parseFloat(tx.amount);
+      return acc;
+    }, {} as Record<string, number>);
 
   return (
     <div className="container mx-auto p-6 max-w-7xl space-y-6">
@@ -115,8 +123,14 @@ export function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" data-testid="button-sync">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => syncAccountsMutation.mutate()}
+            disabled={syncAccountsMutation.isPending || !accounts?.length}
+            data-testid="button-sync"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncAccountsMutation.isPending ? 'animate-spin' : ''}`} />
             Sync Accounts
           </Button>
           <Button variant="outline" size="sm" data-testid="button-export">
@@ -142,9 +156,9 @@ export function Dashboard() {
               ${totalBalance.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              <span className={monthlyChange >= 0 ? "text-green-600" : "text-red-600"}>
-                {monthlyChange >= 0 ? "+" : ""}${monthlyChange.toFixed(2)}
-              </span> from last month
+              <span className={netSavings >= 0 ? "text-green-600" : "text-red-600"}>
+                {accounts?.length ? 'Based on connected accounts' : 'Connect accounts to see data'}
+              </span>
             </p>
           </CardContent>
         </Card>
@@ -159,7 +173,7 @@ export function Dashboard() {
               +${monthlyIncome.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              +12.5% from last month
+              {currentMonthTransactions.filter(tx => parseFloat(tx.amount) > 0).length} transactions this month
             </p>
           </CardContent>
         </Card>
@@ -174,7 +188,7 @@ export function Dashboard() {
               -${monthlyExpenses.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              -8.2% from last month
+              {currentMonthTransactions.filter(tx => parseFloat(tx.amount) < 0).length} transactions this month
             </p>
           </CardContent>
         </Card>
@@ -189,7 +203,7 @@ export function Dashboard() {
               ${(monthlyIncome - monthlyExpenses).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              +24.1% from last month
+              Current month savings rate
             </p>
           </CardContent>
         </Card>
@@ -204,17 +218,30 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
-                {mockAccounts.map((account, index) => (
-                  <AccountCard 
-                    key={index}
-                    accountName={account.accountName}
-                    accountType={account.accountType}
-                    balance={account.balance}
-                    change={account.change}
-                    changePercent={account.changePercent}
-                    isConnected={account.isConnected}
-                  />
-                ))}
+                {accountsLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Loading accounts...
+                  </div>
+                ) : accounts && accounts.length > 0 ? (
+                  accounts.map((account) => (
+                    <AccountCard 
+                      key={account.id}
+                      accountName={account.name}
+                      accountType={account.type}
+                      balance={parseFloat(account.balance)}
+                      change={0} // Historical data not available yet
+                      changePercent={0}
+                      isConnected={account.isActive}
+                    />
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <AlertCircle className="h-12 w-12 mx-auto mb-2" />
+                    <p>No bank accounts connected</p>
+                    <p className="text-sm">Connect your first bank account to get started</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -227,17 +254,23 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {Object.entries(mockCategoryTotals).map(([category, amount]) => (
-                  <div key={category} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded bg-primary"></div>
-                      <span className="text-sm font-medium capitalize">{category}</span>
+                {Object.keys(categoryTotals).length > 0 ? (
+                  Object.entries(categoryTotals).map(([category, amount]) => (
+                    <div key={category} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-primary"></div>
+                        <span className="text-sm font-medium capitalize">{category}</span>
+                      </div>
+                      <span className="text-sm font-medium text-red-600">
+                        ${Math.abs(amount).toLocaleString()}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium text-red-600">
-                      ${Math.abs(amount).toLocaleString()}
-                    </span>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p className="text-sm">No spending data this month</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -255,23 +288,34 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockTransactions.slice(0, 5).map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-primary"></div>
-                    <div>
-                      <p className="font-medium">{transaction.description}</p>
-                      <p className="text-sm text-muted-foreground capitalize">{transaction.category}</p>
+              {transactionsLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Loading transactions...
+                </div>
+              ) : transactions && transactions.length > 0 ? (
+                transactions.slice(0, 5).map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-primary"></div>
+                      <div>
+                        <p className="font-medium">{transaction.description}</p>
+                        <p className="text-sm text-muted-foreground capitalize">{transaction.category || 'uncategorized'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-medium ${parseFloat(transaction.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {parseFloat(transaction.amount) >= 0 ? '+' : ''}${Math.abs(parseFloat(transaction.amount)).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{new Date(transaction.date).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-medium ${transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.amount >= 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{transaction.date}</p>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  <p>No recent transactions</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -283,21 +327,27 @@ export function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               <div className="text-center">
-                <p className="text-2xl font-bold">$2,015.69</p>
+                <p className="text-2xl font-bold">${monthlyExpenses.toLocaleString()}</p>
                 <p className="text-sm text-muted-foreground">Total Spending This Month</p>
               </div>
               <div className="space-y-3">
-                {Object.entries(mockCategoryTotals).map(([category, amount]) => (
-                  <div key={category} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded bg-primary"></div>
-                      <span className="text-sm font-medium capitalize">{category}</span>
+                {Object.keys(categoryTotals).length > 0 ? (
+                  Object.entries(categoryTotals).map(([category, amount]) => (
+                    <div key={category} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-primary"></div>
+                        <span className="text-sm font-medium capitalize">{category}</span>
+                      </div>
+                      <span className="text-sm font-medium text-red-600">
+                        ${Math.abs(amount).toLocaleString()}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium text-red-600">
-                      ${Math.abs(amount).toLocaleString()}
-                    </span>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p className="text-sm">No spending data this month</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </CardContent>
