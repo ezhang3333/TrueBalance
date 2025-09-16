@@ -46,19 +46,28 @@ export function BankConnection() {
 
   // Load Teller Connect script with error handling
   useEffect(() => {
+    console.log('🔍 Checking Teller script loading...', { 
+      tellerConnectExists: !!window.TellerConnect,
+      scriptLoaded 
+    });
+    
     if (window.TellerConnect) {
+      console.log('✅ Teller Connect already available');
       setScriptLoaded(true);
       return;
     }
 
+    console.log('📥 Loading Teller Connect script...');
     const script = document.createElement('script');
     script.src = 'https://cdn.teller.io/connect/connect.js';
     script.async = true;
     script.onload = () => {
+      console.log('✅ Teller Connect script loaded successfully');
       setScriptLoaded(true);
       setScriptError(false);
     };
-    script.onerror = () => {
+    script.onerror = (error) => {
+      console.error('❌ Teller Connect script failed to load:', error);
       setScriptError(true);
       setScriptLoaded(false);
       toast({
@@ -77,15 +86,28 @@ export function BankConnection() {
   }, [toast]);
 
   // Get Teller configuration
-  const { data: tellerConfig } = useQuery<TellerConfig>({
+  const { data: tellerConfig, isLoading: configLoading, error: configError } = useQuery<TellerConfig>({
     queryKey: ['/api/teller/config'],
-    enabled: !!localStorage.getItem('token'),
+    enabled: !!localStorage.getItem('auth_token'),
   });
+
+  // Debug Teller configuration loading
+  useEffect(() => {
+    const hasToken = !!localStorage.getItem('auth_token');
+    console.log('🔍 Teller config status:', { 
+      hasToken,
+      configLoading, 
+      tellerConfig,
+      configError: configError?.message,
+      scriptLoaded,
+      buttonDisabled: !scriptLoaded || !tellerConfig
+    });
+  }, [configLoading, tellerConfig, configError, scriptLoaded]);
 
   // Get user's accounts
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ['/api/accounts'],
-    enabled: !!localStorage.getItem('token'),
+    enabled: !!localStorage.getItem('auth_token'),
   });
 
   // Connect bank account mutation
@@ -143,19 +165,59 @@ export function BankConnection() {
       return;
     }
 
-    window.TellerConnect.setup({
-      applicationId: tellerConfig.applicationId,
-      environment: tellerConfig.environment,
-      onSuccess: (enrollment: { accessToken: string }) => {
-        // Connect bank account - token will be stored securely server-side
-        connectBankMutation.mutate(enrollment.accessToken);
-      },
-      onExit: () => {
-        console.log('User exited Teller Connect');
-      },
-    });
+    // Debug: Check what's available on TellerConnect
+    console.log('TellerConnect object:', window.TellerConnect);
+    console.log('TellerConnect methods:', Object.keys(window.TellerConnect || {}));
 
-    window.TellerConnect.open();
+    if (!window.TellerConnect) {
+      toast({
+        title: 'Teller Connect Error',
+        description: 'Teller Connect script failed to load properly. Please refresh the page.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (typeof window.TellerConnect.setup !== 'function') {
+      toast({
+        title: 'Teller Connect Error',
+        description: 'Teller Connect setup function is not available. Please check your connection.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      window.TellerConnect.setup({
+        applicationId: tellerConfig.applicationId,
+        environment: tellerConfig.environment,
+        onSuccess: (enrollment: { accessToken: string }) => {
+          // Connect bank account - token will be stored securely server-side
+          connectBankMutation.mutate(enrollment.accessToken);
+        },
+        onExit: () => {
+          console.log('User exited Teller Connect');
+        },
+      });
+
+      if (typeof window.TellerConnect.open !== 'function') {
+        toast({
+          title: 'Teller Connect Error',
+          description: 'Teller Connect open function is not available. Please try again or refresh the page.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      window.TellerConnect.open();
+    } catch (error) {
+      console.error('Teller Connect error:', error);
+      toast({
+        title: 'Connection Failed',
+        description: 'Failed to open Teller Connect. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleSync = () => {

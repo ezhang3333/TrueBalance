@@ -28,13 +28,13 @@ export function Dashboard() {
   // Fetch real accounts data
   const { data: accounts, isLoading: accountsLoading, error: accountsError } = useQuery<Account[]>({
     queryKey: ['/api/accounts'],
-    enabled: !!localStorage.getItem('token'),
+    enabled: !!localStorage.getItem('auth_token'),
   });
 
   // Fetch real transactions data
   const { data: transactions, isLoading: transactionsLoading, error: transactionsError } = useQuery<Transaction[]>({
     queryKey: ['/api/transactions'],
-    enabled: !!localStorage.getItem('token'),
+    enabled: !!localStorage.getItem('auth_token'),
   });
 
   // Handle API errors with useEffect to prevent repeated toasts
